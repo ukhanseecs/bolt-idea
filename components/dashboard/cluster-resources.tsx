@@ -7,12 +7,20 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { resourceIcons, resourceCategories } from '@/components/ui/resource-config';
 import { YamlDialog } from '@/components/ui/yaml-dialog';
 import { useKubernetesResources } from '@/hooks/useKubernetesResources';
 import { useResourceYaml } from '@/hooks/useResourceYaml'; // Add this import
 import { Badge } from "@/components/ui/badge"; // Add this import
+import { Button } from "@/components/ui/button"; // Add this import
+import { Network } from "lucide-react"; // Add this import
+import {
+  Box, Database, Globe, Lock, Shield,
+  Cloud, Cpu, HardDrive, Layers,
+  Settings, FileText, Clock, Network as NetworkIcon,
+  Component // Add this as fallback icon
+} from 'lucide-react';
 
 export function ClusterResources() {
   const [selectedCategory, setSelectedCategory] = useState<keyof typeof resourceCategories>("Workloads");
@@ -107,6 +115,7 @@ export function ClusterResources() {
                         data={getResourceData(item, resource)}
                         title={item.name}
                         resourceType={resource}
+                        allResources={resources} // Pass all resources
                       />
                     ))}
                   </div>
@@ -123,36 +132,102 @@ function ResourceCard({
   icon,
   data,
   title,
-  resourceType
+  resourceType,
+  allResources // Add this prop to access all resources
 }: {
   icon: React.ReactNode;
   data: { label: string; value: string }[];
   title: string;
   resourceType: string;
+  allResources: Record<string, any[]>;
 }) {
   const [isYamlOpen, setIsYamlOpen] = useState(false);
+  const [showRelated, setShowRelated] = useState(false);
   const { yamlContent, isLoading, fetchYaml } = useResourceYaml();
-  const labels = data.find(item => item.label === 'Labels')?.value;
 
-  const handleClick = async () => {
+  const getResourceIcon = (type: string) => {
+    const IconComponent = resourceIcons[type as keyof typeof resourceIcons] || Component;
+    return <IconComponent className="h-4 w-4" />;
+  };
+
+  // Extract labels for current resource
+  const labelsString = data.find(item => item.label === 'Labels')?.value;
+  const currentLabels = labelsString && labelsString !== 'None'
+    ? Object.fromEntries(labelsString.split(', ').map(l => l.split(': ')))
+    : {};
+
+  const handleYamlClick = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
     await fetchYaml(resourceType, title);
     setIsYamlOpen(true);
   };
 
+  const handleRelatedClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setShowRelated(!showRelated);
+  };
+
+  // Find related resources
+  const relatedResources = useMemo(() => {
+    if (!currentLabels || Object.keys(currentLabels).length === 0) return [];
+
+    const related: Array<{
+      name: string;
+      type: string;
+      matchedLabels: string[];
+    }> = [];
+
+    // Check all resource types
+    Object.entries(allResources).forEach(([type, resources]) => {
+      if (type === resourceType) return; // Skip same resource type
+
+      resources.forEach(resource => {
+        const resourceLabels = resource.labels || {};
+        const matchedLabels = Object.entries(currentLabels)
+          .filter(([key, value]) => resourceLabels[key] === value)
+          .map(([key]) => key);
+
+        if (matchedLabels.length > 0) {
+          related.push({
+            name: resource.name,
+            type,
+            matchedLabels
+          });
+        }
+      });
+    });
+
+    return related;
+  }, [currentLabels, resourceType, allResources]);
+
   return (
     <>
-      <Card className="mb-4 transition-all hover:shadow-md cursor-pointer" onClick={handleClick}>
+      <Card className="mb-4 transition-all hover:shadow-md">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             {icon}
-            <span className="hover:underline">{title}</span>
+            <span className="hover:underline cursor-pointer" onClick={handleYamlClick}>
+              {title}
+            </span>
           </CardTitle>
+          {relatedResources.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRelatedClick}
+            >
+              <NetworkIcon className="h-4 w-4 mr-1" />
+              {relatedResources.length} Related
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             {data.map((item, index) => (
               <div key={index}>
-                <p className="text-sm font-medium text-muted-foreground">{item.label}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  {item.label}
+                </p>
                 {item.label === 'Labels' ? (
                   <div className="flex flex-wrap gap-1 mt-1">
                     {item.value !== 'None' ? item.value.split(', ').map((label) => {
@@ -172,8 +247,40 @@ function ResourceCard({
               </div>
             ))}
           </div>
+
+          {showRelated && relatedResources.length > 0 && (
+            <div className="mt-4 border-t pt-4">
+              <p className="text-sm font-medium mb-2">Related Resources</p>
+              <div className="space-y-2">
+                {relatedResources.map((resource) => (
+                  <div
+                    key={`${resource.type}-${resource.name}`}
+                    className="flex items-center justify-between p-2 rounded-md bg-accent/20 hover:bg-accent/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {getResourceIcon(resource.type)}
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{resource.name}</span>
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {resource.type}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      {resource.matchedLabels.map(label => (
+                        <Badge key={label} variant="outline" className="text-xs">
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
       <YamlDialog
         isOpen={isYamlOpen}
         onClose={() => setIsYamlOpen(false)}
