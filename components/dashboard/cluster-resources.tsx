@@ -4,106 +4,54 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Box, Database, Globe, Lock, Search,
-  Shield, Cloud, Cpu, HardDrive, Layers,
-  Settings, FileText, Clock, Network
-} from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import React, { useState } from 'react';
-
-// Mock data - replace with real K8s API calls
-const resources = {
-  pods: [
-    { name: 'frontend-pod-1', status: 'Running', namespace: 'default', cpu: '120m', memory: '256Mi', node: 'node-1', age: '2d' },
-    { name: 'backend-pod-1', status: 'Running', namespace: 'backend', cpu: '250m', memory: '512Mi', node: 'node-2', age: '5d' },
-  ],
-  deployments: [
-    { name: 'frontend', replicas: '3/3', namespace: 'default', strategy: 'RollingUpdate', age: '5d' },
-    { name: 'backend', replicas: '2/2', namespace: 'backend', strategy: 'RollingUpdate', age: '5d' },
-  ],
-  services: [
-    { name: 'frontend-svc', type: 'LoadBalancer', clusterIP: '10.0.0.1', externalIP: '34.123.123.123', ports: '80:30000', age: '5d' },
-    { name: 'backend-svc', type: 'ClusterIP', clusterIP: '10.0.0.2', ports: '8080', age: '5d' },
-  ],
-  secrets: [
-    { name: 'api-keys', type: 'Opaque', namespace: 'default', age: '10d' },
-    { name: 'tls-cert', type: 'kubernetes.io/tls', namespace: 'default', age: '5d' },
-  ]
-};
-
-// Resource type icons mapping
-const resourceIcons = {
-  pods: Box,
-  deployments: Database,
-  services: Globe,
-  secrets: Lock,
-  configmaps: FileText,
-  persistentvolumeclaims: HardDrive,
-  networkpolicies: Network,
-  ingresses: Cloud,
-  statefulsets: Layers,
-  daemonsets: Cpu,
-  cronjobs: Clock,
-  jobs: Clock,
-  roles: Shield,
-  rolebindings: Shield,
-  serviceaccounts: Shield,
-  resourcequotas: Settings,
-  horizontalpodautoscalers: Settings,
-  replicasets: Database,
-  endpoints: Globe,
-  // Add more resource icons...
-};
-
-// Resource categories and their items
-const resourceCategories = {
-  "Workloads": [
-    "pods",
-    "deployments",
-    "statefulsets",
-    "daemonsets",
-    "jobs",
-    "cronjobs",
-    "replicasets",
-    "replicationcontrollers",
-  ],
-  "Network": [
-    "services",
-    "ingresses",
-    "networkpolicies",
-    "endpoints",
-    "endpointslices"
-  ],
-  "Config & Storage": [
-    "configmaps",
-    "secrets",
-    "persistentvolumeclaims",
-    "csistoragecapacities"
-  ],
-  "RBAC": [
-    "serviceaccounts",
-    "roles",
-    "rolebindings"
-  ],
-  "Cluster": [
-    "resourcequotas",
-    "limitranges",
-    "horizontalpodautoscalers",
-    "poddisruptionbudgets"
-  ],
-  "Other": [
-    "events",
-    "leases",
-    "controllerrevisions",
-    "podtemplates"
-  ]
-};
+import { resourceIcons, resourceCategories } from '@/components/ui/resource-config';
+import { FormattedResource, useKubernetesResources } from '@/hooks/useKubernetesResources';
 
 export function ClusterResources() {
   const [selectedCategory, setSelectedCategory] = useState<keyof typeof resourceCategories>("Workloads");
   const [searchQuery, setSearchQuery] = useState("");
+  const { resources, loading, error } = useKubernetesResources();
+
+  if (loading) {
+    return (
+      <Card className="flex flex-col h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p className="mt-2 text-sm text-muted-foreground">Loading cluster resources...</p>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="flex flex-col h-full items-center justify-center text-destructive">
+        <p className="text-sm">Error: {error}</p>
+      </Card>
+    );
+  }
+
+  function getResourceData(item: FormattedResource, resource: string): { label: string; value: string; }[] {
+    const data = [];
+
+    if (resource === "pods") {
+      data.push({ label: "Namespace", value: item.namespace });
+      data.push({ label: "Status", value: item.status });
+      data.push({ label: "Node", value: item.node });
+    } else if (resource === "services") {
+      data.push({ label: "Namespace", value: item.namespace });
+      data.push({ label: "Cluster IP", value: item.clusterIP });
+      data.push({ label: "Ports", value: item.ports.join(", ") });
+    } else if (resource === "deployments") {
+      data.push({ label: "Namespace", value: item.namespace });
+      data.push({ label: "Replicas", value: `${item.replicas}` });
+      data.push({ label: "Available Replicas", value: `${item.availableReplicas}` });
+    }
+
+    return data;
+  }
 
   return (
     <Card className="flex flex-col h-full">
@@ -120,7 +68,7 @@ export function ClusterResources() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as keyof typeof resourceCategories)}>
+            <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as string as keyof typeof resourceCategories)}>
               <SelectTrigger className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -139,23 +87,22 @@ export function ClusterResources() {
         <Tabs defaultValue={resourceCategories[selectedCategory][0]} className="space-y-4">
           <ScrollArea className="h-[50px] whitespace-nowrap">
             <TabsList>
-              {resourceCategories[selectedCategory]
-                .filter(resource => resource.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map(resource => (
+                {resourceCategories[selectedCategory]
+                .filter((resource: string) => resource.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((resource: string) => (
                   <TabsTrigger key={resource} value={resource} className="capitalize">
-                    {resource}
+                  {resource}
                   </TabsTrigger>
                 ))}
             </TabsList>
           </ScrollArea>
-
           {resourceCategories[selectedCategory]
-            .filter(resource => resource.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map(resource => (
+            .filter((resource: string) => resource.toLowerCase().includes(searchQuery.toLowerCase()))
+            .map((resource: string) => (
               <TabsContent key={resource} value={resource}>
                 <ScrollArea className="h-[600px]">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {resources[resource as keyof typeof resources]?.map((item, index) => (
+                    {resources[resource]?.map((item, index) => (
                       <ResourceCard
                         key={index}
                         icon={React.createElement(resourceIcons[resource as keyof typeof resourceIcons])}
@@ -171,36 +118,6 @@ export function ClusterResources() {
       </CardContent>
     </Card>
   );
-}
-
-// Helper function to get formatted data for each resource type
-function getResourceData(item: any, resourceType: string) {
-  const commonFields = [
-    { label: 'Namespace', value: item.namespace },
-    { label: 'Age', value: item.age },
-  ];
-
-  const specificFields: Record<string, Array<{label: string, value: string}>> = {
-    pods: [
-      { label: 'Status', value: item.status },
-      { label: 'CPU', value: item.cpu },
-      { label: 'Memory', value: item.memory },
-      { label: 'Node', value: item.node },
-    ],
-    deployments: [
-      { label: 'Replicas', value: item.replicas },
-      { label: 'Strategy', value: item.strategy },
-    ],
-    services: [
-      { label: 'Type', value: item.type },
-      { label: 'Cluster IP', value: item.clusterIP },
-      { label: 'External IP', value: item.externalIP || 'None' },
-      { label: 'Ports', value: item.ports },
-    ],
-    // Add more resource type specific fields...
-  };
-
-  return [...(specificFields[resourceType] || []), ...commonFields];
 }
 
 function ResourceCard({
