@@ -9,7 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import React, { useState } from 'react';
 import { resourceIcons, resourceCategories } from '@/components/ui/resource-config';
+import { YamlDialog } from '@/components/ui/yaml-dialog';
 import { useKubernetesResources } from '@/hooks/useKubernetesResources';
+import { useResourceYaml } from '@/hooks/useResourceYaml'; // Add this import
 
 export function ClusterResources() {
   const [selectedCategory, setSelectedCategory] = useState<keyof typeof resourceCategories>("Workloads");
@@ -103,6 +105,7 @@ export function ClusterResources() {
                         icon={React.createElement(resourceIcons[resource as keyof typeof resourceIcons])}
                         data={getResourceData(item, resource)}
                         title={item.name}
+                        resourceType={resource}
                       />
                     ))}
                   </div>
@@ -118,29 +121,50 @@ export function ClusterResources() {
 function ResourceCard({
   icon,
   data,
-  title
+  title,
+  resourceType
 }: {
-  icon: React.ReactNode,
-  data: { label: string, value: string }[],
-  title: string
+  icon: React.ReactNode;
+  data: { label: string; value: string }[];
+  title: string;
+  resourceType: string;
 }) {
+  const [isYamlOpen, setIsYamlOpen] = useState(false);
+  const { yamlContent, isLoading, fetchYaml } = useResourceYaml();
+
+  const handleClick = async () => {
+    await fetchYaml(resourceType, title);
+    setIsYamlOpen(true);
+  };
+
   return (
-    <Card className="mb-4">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {icon}
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-          {data.map((item, index) => (
-            <div key={index}>
-              <p className="text-sm font-medium">{item.label}</p>
-              <p className="text-sm text-muted-foreground">{item.value}</p>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <>
+      <Card className="mb-4 transition-all hover:shadow-md cursor-pointer" onClick={handleClick}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            {icon}
+            <span className="hover:underline">{title}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            {data.map((item, index) => (
+              <div key={index}>
+                <p className="text-sm font-medium text-muted-foreground">{item.label}</p>
+                <p className="text-sm">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <YamlDialog
+        isOpen={isYamlOpen}
+        onClose={() => setIsYamlOpen(false)}
+        title={`${title} YAML`}
+        content={isLoading ? "Loading..." : yamlContent}
+      />
+    </>
   );
 }
 
