@@ -7,6 +7,7 @@ export interface FormattedResource {
   namespace: string;
   status?: string;
   age: string;
+  labels?: Record<string, string>;
   [key: string]: any;
 }
 
@@ -54,13 +55,14 @@ function formatResource(resource: KubernetesResource, type: string): FormattedRe
     name: resource.metadata.name,
     namespace: resource.metadata.namespace,
     age,
+    labels: resource.metadata.labels || {},
   };
 
   // Add type-specific formatting
   switch (type) {
     case 'pods':
       formatted.status = resource.status?.phase;
-      formatted.node = resource.spec?.nodeName;
+      formatted.nodeName = resource.spec?.nodeName;
       break;
     case 'services':
       formatted.type = resource.spec?.type;

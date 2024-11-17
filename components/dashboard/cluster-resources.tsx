@@ -12,6 +12,7 @@ import { resourceIcons, resourceCategories } from '@/components/ui/resource-conf
 import { YamlDialog } from '@/components/ui/yaml-dialog';
 import { useKubernetesResources } from '@/hooks/useKubernetesResources';
 import { useResourceYaml } from '@/hooks/useResourceYaml'; // Add this import
+import { Badge } from "@/components/ui/badge"; // Add this import
 
 export function ClusterResources() {
   const [selectedCategory, setSelectedCategory] = useState<keyof typeof resourceCategories>("Workloads");
@@ -131,6 +132,7 @@ function ResourceCard({
 }) {
   const [isYamlOpen, setIsYamlOpen] = useState(false);
   const { yamlContent, isLoading, fetchYaml } = useResourceYaml();
+  const labels = data.find(item => item.label === 'Labels')?.value;
 
   const handleClick = async () => {
     await fetchYaml(resourceType, title);
@@ -151,13 +153,27 @@ function ResourceCard({
             {data.map((item, index) => (
               <div key={index}>
                 <p className="text-sm font-medium text-muted-foreground">{item.label}</p>
-                <p className="text-sm">{item.value}</p>
+                {item.label === 'Labels' ? (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {item.value !== 'None' ? item.value.split(', ').map((label) => {
+                      const [key, value] = label.split(': ');
+                      return (
+                        <Badge key={key} variant="secondary" className="text-xs">
+                          {key}: {value}
+                        </Badge>
+                      );
+                    }) : (
+                      <span className="text-sm text-muted-foreground">None</span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm">{item.value}</p>
+                )}
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
-
       <YamlDialog
         isOpen={isYamlOpen}
         onClose={() => setIsYamlOpen(false)}
@@ -168,10 +184,19 @@ function ResourceCard({
   );
 }
 
+// Add this helper function to format labels
+function formatLabels(labels: Record<string, string> | undefined): string {
+  if (!labels || Object.keys(labels).length === 0) return 'None';
+  return Object.entries(labels)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(', ');
+}
+
 function getResourceData(item: any, resourceType: string) {
   const commonFields = [
     { label: 'Namespace', value: item.namespace },
     { label: 'Age', value: item.age },
+    { label: 'Labels', value: formatLabels(item.labels) }, // Add labels to common fields
   ];
 
   const specificFields: Record<string, Array<{label: string, value: string}>> = {

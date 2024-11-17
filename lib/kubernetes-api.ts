@@ -6,9 +6,16 @@ export interface KubernetesResource {
     name: string;
     namespace: string;
     creationTimestamp: string;
+    labels?: Record<string, string>;
   };
-  spec?: any;
-  status?: any;
+  spec?: {
+    nodeName?: string;
+    type?: string;
+    clusterIP?: string;
+  };
+  status?: {
+    phase?: string;
+  };
 }
 
 export async function getResourceTypes(): Promise<string[]> {
