@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import React, { useState } from 'react';
 import { resourceIcons, resourceCategories } from '@/components/ui/resource-config';
-import { FormattedResource, useKubernetesResources } from '@/hooks/useKubernetesResources';
+import { useKubernetesResources } from '@/hooks/useKubernetesResources';
 
 export function ClusterResources() {
   const [selectedCategory, setSelectedCategory] = useState<keyof typeof resourceCategories>("Workloads");
@@ -33,26 +33,6 @@ export function ClusterResources() {
     );
   }
 
-  function getResourceData(item: FormattedResource, resource: string): { label: string; value: string; }[] {
-    const data = [];
-
-    if (resource === "pods") {
-      data.push({ label: "Namespace", value: item.namespace });
-      data.push({ label: "Status", value: item.status });
-      data.push({ label: "Node", value: item.node });
-    } else if (resource === "services") {
-      data.push({ label: "Namespace", value: item.namespace });
-      data.push({ label: "Cluster IP", value: item.clusterIP });
-      data.push({ label: "Ports", value: item.ports.join(", ") });
-    } else if (resource === "deployments") {
-      data.push({ label: "Namespace", value: item.namespace });
-      data.push({ label: "Replicas", value: `${item.replicas}` });
-      data.push({ label: "Available Replicas", value: `${item.availableReplicas}` });
-    }
-
-    return data;
-  }
-
   return (
     <Card className="flex flex-col h-full">
       <CardHeader>
@@ -68,7 +48,7 @@ export function ClusterResources() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as string as keyof typeof resourceCategories)}>
+            <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as keyof typeof resourceCategories)}>
               <SelectTrigger className="w-48">
                 <SelectValue />
               </SelectTrigger>
@@ -87,18 +67,18 @@ export function ClusterResources() {
         <Tabs defaultValue={resourceCategories[selectedCategory][0]} className="space-y-4">
           <ScrollArea className="h-[50px] whitespace-nowrap">
             <TabsList>
-                {resourceCategories[selectedCategory]
-                .filter((resource: string) => resource.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((resource: string) => (
+              {resourceCategories[selectedCategory]
+                .filter(resource => resource.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map(resource => (
                   <TabsTrigger key={resource} value={resource} className="capitalize">
-                  {resource}
+                    {resource}
                   </TabsTrigger>
                 ))}
             </TabsList>
           </ScrollArea>
           {resourceCategories[selectedCategory]
-            .filter((resource: string) => resource.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map((resource: string) => (
+            .filter(resource => resource.toLowerCase().includes(searchQuery.toLowerCase()))
+            .map(resource => (
               <TabsContent key={resource} value={resource}>
                 <ScrollArea className="h-[600px]">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -147,4 +127,40 @@ function ResourceCard({
       </CardContent>
     </Card>
   );
+}
+
+function getResourceData(item: any, resourceType: string) {
+  const commonFields = [
+    { label: 'Namespace', value: item.namespace },
+    { label: 'Age', value: item.age },
+  ];
+
+  const specificFields: Record<string, Array<{label: string, value: string}>> = {
+    pods: [
+      { label: 'Status', value: item.status },
+      { label: 'CPU', value: item.cpu || 'N/A' },
+      { label: 'Memory', value: item.memory || 'N/A' },
+      { label: 'Node', value: item.nodeName || 'N/A' },
+    ],
+    deployments: [
+      { label: 'Replicas', value: `${item.readyReplicas || 0}/${item.replicas || 0}` },
+      { label: 'Strategy', value: item.strategy?.type || 'N/A' },
+    ],
+    services: [
+      { label: 'Type', value: item.type || 'ClusterIP' },
+      { label: 'Cluster IP', value: item.clusterIP || 'N/A' },
+      { label: 'External IP', value: item.loadBalancer?.ingress?.[0]?.ip || 'None' },
+      { label: 'Ports', value: formatPorts(item.ports) },
+    ],
+  };
+
+  return [
+    ...commonFields,
+    ...(specificFields[resourceType] || []),
+  ];
+}
+
+function formatPorts(ports: any[]): string {
+  if (!ports) return 'N/A';
+  return ports.map(p => `${p.port}${p.targetPort ? ':' + p.targetPort : ''}`).join(', ');
 }
