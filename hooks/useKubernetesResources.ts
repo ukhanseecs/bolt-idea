@@ -14,6 +14,7 @@ export function useKubernetesResources() {
   const [resources, setResources] = useState<Record<string, FormattedResource[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     async function fetchResources() {
@@ -43,7 +44,7 @@ export function useKubernetesResources() {
     fetchResources();
   }, []);
 
-  return { resources, loading, error };
+  return { resources, loading, error, searchQuery, setSearchQuery };
 }
 
 function formatResource(resource: KubernetesResource, type: string): FormattedResource {

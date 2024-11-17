@@ -33,6 +33,23 @@ export function ClusterResources() {
     );
   }
 
+  const filteredResources = Object.keys(resources).reduce((acc, key) => {
+    // Only filter resources that belong to the selected category
+    if (resourceCategories[selectedCategory].includes(key)) {
+      const filtered = resources[key].filter(resource =>
+        // Search across resource fields
+        resource.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        resource.namespace?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        resource.status?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+      if (filtered.length > 0) {
+        acc[key] = filtered;
+      }
+    }
+    return acc;
+  }, {} as typeof resources);
+
   return (
     <Card className="flex flex-col h-full">
       <CardHeader>
@@ -67,13 +84,11 @@ export function ClusterResources() {
         <Tabs defaultValue={resourceCategories[selectedCategory][0]} className="space-y-4">
           <ScrollArea className="h-[50px] whitespace-nowrap">
             <TabsList>
-              {resourceCategories[selectedCategory]
-                .filter(resource => resource.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map(resource => (
-                  <TabsTrigger key={resource} value={resource} className="capitalize">
-                    {resource}
-                  </TabsTrigger>
-                ))}
+              {resourceCategories[selectedCategory].map(resource => (
+                <TabsTrigger key={resource} value={resource} className="capitalize">
+                  {resource}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </ScrollArea>
           {resourceCategories[selectedCategory]
@@ -82,7 +97,7 @@ export function ClusterResources() {
               <TabsContent key={resource} value={resource}>
                 <ScrollArea className="h-[600px]">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {resources[resource]?.map((item, index) => (
+                    {filteredResources[resource]?.map((item, index) => (
                       <ResourceCard
                         key={index}
                         icon={React.createElement(resourceIcons[resource as keyof typeof resourceIcons])}
