@@ -19,29 +19,21 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o server main.go
 FROM alpine:latest
 WORKDIR /app
 
-# Install tini and other dependencies
-RUN apk --no-cache add ca-certificates tini nodejs npm
+# Install dependencies
+RUN apk --no-cache add ca-certificates tini nodejs npm curl jq
 
-# Copy files from previous stages
+# Copy application files
 COPY --from=frontend-builder /app/.next ./.next
 COPY --from=frontend-builder /app/public ./public
 COPY --from=frontend-builder /app/package.json ./package.json
 COPY --from=frontend-builder /app/node_modules ./node_modules
 COPY --from=backend-builder /app/server ./
 
-# Create start script
-RUN echo '#!/bin/sh' > start.sh && \
-    echo 'trap "kill 0" SIGTERM' >> start.sh && \
-    echo './server &' >> start.sh && \
-    echo 'SERVER_PID=$!' >> start.sh && \
-    echo 'npm start &' >> start.sh && \
-    echo 'FRONTEND_PID=$!' >> start.sh && \
-    echo 'wait $SERVER_PID $FRONTEND_PID' >> start.sh && \
-    chmod +x start.sh
+# Copy startup script
+COPY start.sh .
+RUN chmod +x start.sh
 
-# Use tini as entrypoint
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["./start.sh"]
 
-# Expose ports
 EXPOSE 3000 8080
