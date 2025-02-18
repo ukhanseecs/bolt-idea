@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Create public directory if it doesn't exist
+RUN mkdir -p public
 RUN npm run build
 
 # Stage 2: Build the backend
@@ -14,29 +16,32 @@ RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o server main.go
 
 # Stage 3: Final stage
-FROM alpine:3.18
+FROM alpine:latest
 WORKDIR /app
 
-# Install necessary runtime dependencies
-RUN apk --no-cache add ca-certificates
+# Install tini and other dependencies
+RUN apk --no-cache add ca-certificates tini nodejs npm
 
-# Copy the frontend build
+# Copy files from previous stages
 COPY --from=frontend-builder /app/.next ./.next
 COPY --from=frontend-builder /app/public ./public
 COPY --from=frontend-builder /app/package.json ./package.json
-
-# Copy the backend binary
+COPY --from=frontend-builder /app/node_modules ./node_modules
 COPY --from=backend-builder /app/server ./
 
-# Install production node modules
-COPY --from=frontend-builder /app/node_modules ./node_modules
-
-# Expose ports for both frontend and backend
-EXPOSE 3000 8080
-
 # Create start script
-RUN echo '#!/bin/sh\n\
-(./server &)\n\
-exec npm start' > start.sh && chmod +x start.sh
+RUN echo '#!/bin/sh' > start.sh && \
+    echo 'trap "kill 0" SIGTERM' >> start.sh && \
+    echo './server &' >> start.sh && \
+    echo 'SERVER_PID=$!' >> start.sh && \
+    echo 'npm start &' >> start.sh && \
+    echo 'FRONTEND_PID=$!' >> start.sh && \
+    echo 'wait $SERVER_PID $FRONTEND_PID' >> start.sh && \
+    chmod +x start.sh
 
+# Use tini as entrypoint
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["./start.sh"]
+
+# Expose ports
+EXPOSE 3000 8080
