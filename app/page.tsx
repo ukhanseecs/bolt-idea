@@ -56,40 +56,59 @@ export default function Home() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8">
+        {/* Enhanced Header Section */}
+        <div className="flex items-center justify-between pb-2 border-b">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+              ClusterEye Dashboard
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Your Kubernetes cluster monitoring at a glance
+            </p>
+          </div>
+          <div className="hidden md:flex items-center gap-2 bg-secondary/50 p-2 rounded-md">
+            <div className="h-2 w-2 rounded-full bg-green-500"></div>
+            <span className="text-sm font-medium">Cluster healthy</span>
+          </div>
+        </div>
+        
+        {/* Stats Cards with Enhanced Styling */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">ClusterEye Dashboard</h1>
-          <p className="text-muted-foreground">
-            Your Kubernetes cluster monitoring at a glance
-          </p>
+          <h2 className="text-xl font-semibold mb-3">Resource Overview</h2>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <StatsCard
+              title="Total Pods"
+              value={stats.pods.total.toString()}
+              description={`${stats.pods.running} running pods`}
+              icon={<Server className="h-4 w-4 text-muted-foreground" />}
+            />
+            <StatsCard
+              title="Deployments"
+              value={stats.deployments.total.toString()}
+              description={`${stats.deployments.healthy} healthy`}
+              icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+            />
+            <StatsCard
+              title="Services"
+              value={stats.services.total.toString()}
+              description={`${stats.services.loadBalancers} LoadBalancers`}
+              icon={<Globe className="h-4 w-4 text-muted-foreground" />}
+            />
+            <StatsCard
+              title="Secrets"
+              value={stats.secrets.total.toString()}
+              description={`${stats.secrets.needsRotation} pending rotation`}
+              icon={<Lock className="h-4 w-4 text-muted-foreground" />}
+            />
+          </div>
         </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            title="Total Pods"
-            value={stats.pods.total.toString()}
-            description={`${stats.pods.running} running pods`}
-            icon={<Server className="h-4 w-4 text-muted-foreground" />}
-          />
-          <StatsCard
-            title="Deployments"
-            value={stats.deployments.total.toString()}
-            description={`${stats.deployments.healthy} healthy`}
-            icon={<Activity className="h-4 w-4 text-muted-foreground" />}
-          />
-          <StatsCard
-            title="Services"
-            value={stats.services.total.toString()}
-            description={`${stats.services.loadBalancers} LoadBalancers`}
-            icon={<Globe className="h-4 w-4 text-muted-foreground" />}
-          />
-          <StatsCard
-            title="Secrets"
-            value={stats.secrets.total.toString()}
-            description={`${stats.secrets.needsRotation} pending rotation`}
-            icon={<Lock className="h-4 w-4 text-muted-foreground" />}
-          />
+        
+        {/* Cluster Resources with Section Title */}
+        <div>
+          <h2 className="text-xl font-semibold mb-3">Detailed Resources</h2>
+          <ClusterResources />
         </div>
-        <ClusterResources />
       </div>
     </DashboardLayout>
   );
