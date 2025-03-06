@@ -31,14 +31,19 @@ export function YamlDialog({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[80vh]">
-        <DialogHeader>
+        <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle>{title}</DialogTitle>
-          <Button onClick={handleCopy} className="ml-auto">
-            {copySuccess || "Copy"}
+          <Button 
+            onClick={handleCopy} 
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+          >
+            {copySuccess || "Copy YAML"}
           </Button>
         </DialogHeader>
         <ScrollArea className="h-full">
-          <pre className="p-4 bg-muted rounded-md text-sm">
+          <pre className="p-4 bg-muted rounded-md text-sm font-mono whitespace-pre-wrap overflow-x-auto">
             <code>{content}</code>
           </pre>
         </ScrollArea>
