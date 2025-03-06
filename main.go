@@ -32,26 +32,21 @@ func main() {
 	_, clientset, err := initializeClients()
 	if err != nil {
 		log.Printf("Client initialization failed: %v", err)
-		return
+		log.Printf("Starting server without Kubernetes functionality.")
+		// Continue with limited functionality
+	} else {
+		// Initialize resource data only if connection is successful
+		// Get the list of all API resources available
+		discoveryClient := clientset.Discovery()
+		serverResources, err := discoveryClient.ServerPreferredResources()
+		if err != nil {
+			log.Printf("Failed to retrieve server preferred resources: %v", err)
+			log.Printf("Starting server with limited Kubernetes functionality.")
+		} else {
+			// Initialize resource data asynchronously
+			initializeResourceDataAsync(serverResources)
+		}
 	}
-
-	// Create a Discovery Client
-	discoveryClient := clientset.Discovery()
-
-	// Get the list of all API resources available
-	serverResources, err := discoveryClient.ServerPreferredResources()
-	if err != nil {
-		log.Printf("Failed to retrieve server preferred resources: %v", err)
-		return
-	}
-
-	if serverResources == nil || len(serverResources) == 0 {
-		log.Printf("No server resources found. Initialization aborted.")
-		return
-	}
-
-	// Initialize resource data asynchronously
-	initializeResourceDataAsync(serverResources)
 
 	// Set up HTTP routes using Gorilla Mux
 	r := mux.NewRouter()
