@@ -26,6 +26,47 @@ export function ClusterResources() {
   const [selectedCategory, setSelectedCategory] = useState<keyof typeof resourceCategories>("Workloads");
   const [searchQuery, setSearchQuery] = useState("");
   const { resources, loading, error } = useKubernetesResources();
+  
+  // Move useMemo hook here to ensure consistent hook ordering
+  const filteredResources = useMemo(() => {
+    if (!resources) return {};
+    
+    return Object.keys(resources).reduce((acc, key) => {
+      // Only include resources that belong to the selected category
+      if (resourceCategories[selectedCategory].includes(key)) {
+        // If there's no search query, include all resources
+        if (!searchQuery.trim()) {
+          acc[key] = resources[key];
+          return acc;
+        }
+        
+        const normalized = searchQuery.toLowerCase().trim();
+        const filtered = resources[key]?.filter(resource => {
+          if (!resource) return false;
+          return (
+            (resource.name || '').toLowerCase().includes(normalized) ||
+            (resource.namespace || '').toLowerCase().includes(normalized) ||
+            (resource.status || '').toLowerCase().includes(normalized) ||
+            // Safely check labels
+            (resource.labels && Object.entries(resource.labels).some(([k, v]) => 
+              k.toLowerCase().includes(normalized) || 
+              String(v).toLowerCase().includes(normalized)
+            )) ||
+            // Safely check annotations
+            (resource.annotations && Object.entries(resource.annotations).some(([k, v]) => 
+              k.toLowerCase().includes(normalized) || 
+              String(v).toLowerCase().includes(normalized)
+            ))
+          );
+        });
+        
+        if (filtered && filtered.length > 0) {
+          acc[key] = filtered;
+        }
+      }
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [resources, selectedCategory, searchQuery]);
 
   if (loading) {
     return (
@@ -43,23 +84,6 @@ export function ClusterResources() {
       </Card>
     );
   }
-
-  const filteredResources = Object.keys(resources).reduce((acc, key) => {
-    // Only filter resources that belong to the selected category
-    if (resourceCategories[selectedCategory].includes(key)) {
-      const filtered = resources[key].filter(resource =>
-        // Search across resource fields
-        resource.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        resource.namespace?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        resource.status?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
-      if (filtered.length > 0) {
-        acc[key] = filtered;
-      }
-    }
-    return acc;
-  }, {} as typeof resources);
 
   return (
     <Card className="flex flex-col h-full">
@@ -103,7 +127,6 @@ export function ClusterResources() {
             </TabsList>
           </ScrollArea>
           {resourceCategories[selectedCategory]
-            .filter(resource => resource.toLowerCase().includes(searchQuery.toLowerCase()))
             .map(resource => (
               <TabsContent key={resource} value={resource}>
                 <ScrollArea className="h-[600px]">
@@ -115,7 +138,7 @@ export function ClusterResources() {
                         data={getResourceData(item, resource)}
                         title={item.name}
                         resourceType={resource}
-                        allResources={resources} // Pass all resources
+                        allResources={resources} 
                       />
                     ))}
                   </div>
