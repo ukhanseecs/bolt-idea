@@ -4,21 +4,21 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Loader2, Network } from 'lucide-react'; // Add Network to imports
+import { Search, Loader2, Network } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import React, { useState, useMemo } from 'react';
 import { resourceIcons, resourceCategories } from '@/components/ui/resource-config';
 import { YamlDialog } from '@/components/ui/yaml-dialog';
 import { useKubernetesResources } from '@/hooks/useKubernetesResources';
-import { useResourceYaml } from '@/hooks/useResourceYaml'; // Add this import
-import { Badge } from "@/components/ui/badge"; // Add this import
-import { Button } from "@/components/ui/button"; // Add this import
+import { useResourceYaml } from '@/hooks/useResourceYaml';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Box, Database, Globe, Lock, Shield,
   Cloud, Cpu, HardDrive, Layers,
   Settings, FileText, Clock, Network as NetworkIcon,
-  Component // Add this as fallback icon
+  Component 
 } from 'lucide-react';
 import { RelatedResources } from "@/components/ui/related-resources";
 
@@ -27,21 +27,18 @@ export function ClusterResources() {
   const [searchQuery, setSearchQuery] = useState("");
   const { resources, loading, error } = useKubernetesResources();
   
-  // Move useMemo hook here to ensure consistent hook ordering
+  // Modified filteredResources to support cross-category search
   const filteredResources = useMemo(() => {
     if (!resources) return {};
     
-    return Object.keys(resources).reduce((acc, key) => {
-      // Only include resources that belong to the selected category
-      if (resourceCategories[selectedCategory].includes(key)) {
-        // If there's no search query, include all resources
-        if (!searchQuery.trim()) {
-          acc[key] = resources[key];
-          return acc;
-        }
-        
-        const normalized = searchQuery.toLowerCase().trim();
-        const filtered = resources[key]?.filter(resource => {
+    // If there's a search query, search across all resources regardless of category
+    if (searchQuery.trim()) {
+      const normalized = searchQuery.toLowerCase().trim();
+      const searchResults: Record<string, any[]> = {};
+      
+      // Loop through all resource types
+      Object.keys(resources).forEach(resourceType => {
+        const filtered = resources[resourceType]?.filter(resource => {
           if (!resource) return false;
           return (
             (resource.name || '').toLowerCase().includes(normalized) ||
@@ -61,12 +58,29 @@ export function ClusterResources() {
         });
         
         if (filtered && filtered.length > 0) {
-          acc[key] = filtered;
+          searchResults[resourceType] = filtered;
         }
+      });
+      
+      return searchResults;
+    }
+    
+    // Otherwise, filter by category as before
+    return Object.keys(resources).reduce((acc, key) => {
+      if (resourceCategories[selectedCategory].includes(key)) {
+        acc[key] = resources[key];
       }
       return acc;
     }, {} as Record<string, any[]>);
   }, [resources, selectedCategory, searchQuery]);
+
+  // Get visible resource types based on search results or category
+  const visibleResourceTypes = useMemo(() => {
+    if (searchQuery.trim()) {
+      return Object.keys(filteredResources);
+    }
+    return resourceCategories[selectedCategory];
+  }, [filteredResources, selectedCategory, searchQuery]);
 
   if (loading) {
     return (
@@ -89,52 +103,77 @@ export function ClusterResources() {
     <Card className="flex flex-col h-full">
       <CardHeader>
         <div className="flex justify-between items-center flex-wrap gap-4">
-          <CardTitle>Cluster Resources</CardTitle>
+          <CardTitle>
+            {searchQuery.trim() ? 'Search Results' : 'Cluster Resources'}
+            {searchQuery.trim() && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                for "{searchQuery}"
+              </span>
+            )}
+          </CardTitle>
           <div className="flex gap-4">
             <div className="relative w-64">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search resources..."
+                placeholder="Search all resources..."
                 className="pl-8"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as keyof typeof resourceCategories)}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.keys(resourceCategories).map(category => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!searchQuery.trim() && (
+              <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as keyof typeof resourceCategories)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(resourceCategories).map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {searchQuery.trim() && (
+              <Button 
+                variant="outline" 
+                onClick={() => setSearchQuery("")}
+                size="sm"
+              >
+                Clear Search
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue={resourceCategories[selectedCategory][0]} className="space-y-4">
-          <ScrollArea className="h-[50px] whitespace-nowrap">
-            <TabsList>
-              {resourceCategories[selectedCategory].map(resource => (
-                <TabsTrigger key={resource} value={resource} className="capitalize">
-                  {resource}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </ScrollArea>
-          {resourceCategories[selectedCategory]
-            .map(resource => (
+        {visibleResourceTypes.length > 0 ? (
+          <Tabs defaultValue={visibleResourceTypes[0]} className="space-y-4">
+            <ScrollArea className="h-[50px] whitespace-nowrap">
+              <TabsList>
+                {visibleResourceTypes.map(resource => (
+                  <TabsTrigger key={resource} value={resource} className="capitalize">
+                    {resource}
+                    {filteredResources[resource] && (
+                      <Badge className="ml-2 text-xs" variant="secondary">
+                        {filteredResources[resource].length}
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </ScrollArea>
+            {visibleResourceTypes.map(resource => (
               <TabsContent key={resource} value={resource}>
                 <ScrollArea className="h-[600px]">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {filteredResources[resource]?.map((item, index) => (
                       <ResourceCard
                         key={index}
-                        icon={React.createElement(resourceIcons[resource as keyof typeof resourceIcons])}
+                        icon={React.createElement(
+                          resourceIcons[resource as keyof typeof resourceIcons] || Component
+                        )}
                         data={getResourceData(item, resource)}
                         title={item.name}
                         resourceType={resource}
@@ -145,7 +184,16 @@ export function ClusterResources() {
                 </ScrollArea>
               </TabsContent>
             ))}
-        </Tabs>
+          </Tabs>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-[600px] text-center">
+            <Search className="h-12 w-12 mb-4 text-muted-foreground opacity-50" />
+            <h3 className="text-lg font-medium">No resources found</h3>
+            <p className="text-muted-foreground mt-2">
+              Try adjusting your search term or select a different category.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -156,7 +204,7 @@ function ResourceCard({
   data,
   title,
   resourceType,
-  allResources // Add this prop to access all resources
+  allResources 
 }: {
   icon: React.ReactNode;
   data: { label: string; value: string }[];
@@ -168,26 +216,23 @@ function ResourceCard({
   const [showRelated, setShowRelated] = useState(false);
   const { yamlContent, isLoading, fetchYaml } = useResourceYaml();
 
-  // Extract labels and find related resources (keep existing logic)
   const labelsString = data.find(item => item.label === 'Labels')?.value;
   const currentLabels = labelsString && labelsString !== 'None'
     ? Object.fromEntries(labelsString.split(', ').map(l => l.split(': ')))
     : {};
 
   const relatedResources = useMemo(() => {
-    // Keep existing related resources logic
-    // For now, return an empty array to avoid the error
     return [];
   }, [currentLabels, resourceType, allResources]);
 
   function handleRelatedClick(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
-    event.stopPropagation(); // Prevent event bubbling
+    event.stopPropagation(); 
     setShowRelated(!showRelated);
   }
 
   async function handleYamlClick(event: React.MouseEvent<HTMLSpanElement, MouseEvent>): Promise<void> {
-    event.stopPropagation(); // Prevent event bubbling
-    await fetchYaml(resourceType, title); // Correct order
+    event.stopPropagation(); 
+    await fetchYaml(resourceType, title); 
     setIsYamlOpen(true);
   }
 
@@ -255,7 +300,6 @@ function ResourceCard({
   );
 }
 
-// Add this helper function to format labels
 function formatLabels(labels: Record<string, string> | undefined): string {
   if (!labels || Object.keys(labels).length === 0) return 'None';
   return Object.entries(labels)
@@ -267,7 +311,7 @@ function getResourceData(item: any, resourceType: string) {
   const commonFields = [
     { label: 'Namespace', value: item.namespace },
     { label: 'Age', value: item.age },
-    { label: 'Labels', value: formatLabels(item.labels) }, // Add labels to common fields
+    { label: 'Labels', value: formatLabels(item.labels) }, 
   ];
 
   const specificFields: Record<string, Array<{label: string, value: string}>> = {
