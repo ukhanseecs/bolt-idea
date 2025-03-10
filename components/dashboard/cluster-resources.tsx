@@ -288,14 +288,7 @@ function ResourceCard({
             <RelatedResources resources={relatedResources} />
           )}
         </CardContent>
-      </Card>
-
-      <YamlDialog
-        isOpen={isYamlOpen}
-        onClose={() => setIsYamlOpen(false)}
-        title={`${title} YAML`}
-        content={isLoading ? "Loading..." : yamlContent}
-      />
+      </\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
     </>
   );
 }
