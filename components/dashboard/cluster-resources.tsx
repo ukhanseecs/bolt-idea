@@ -289,6 +289,13 @@ function ResourceCard({
           )}
         </CardContent>
       </Card>
+
+      <YamlDialog 
+        isOpen={isYamlOpen}
+        onClose={() => setIsYamlOpen(false)}
+        title={`${resourceType}/${title} YAML`}
+        content={yamlContent || "Loading..."}
+      />
     </>
   );
 }
