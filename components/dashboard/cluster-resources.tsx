@@ -288,7 +288,7 @@ function ResourceCard({
             <RelatedResources resources={relatedResources} />
           )}
         </CardContent>
-      </\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+      </Card>
     </>
   );
 }
